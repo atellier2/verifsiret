@@ -1,0 +1,947 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VerifSiret</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #fff; --text: #1d2330; --muted: #667085; --border: #dfe3ea;
+    --accent: #2457d6; --accent-text: #fff;
+    --ok: #137a3f; --ok-bg: #e3f5ea;
+    --warn: #915a00; --warn-bg: #fff2d6;
+    --err: #b42318; --err-bg: #fde6e3;
+    --na: #475467; --na-bg: #eceef2;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151c; --card: #1b2029; --text: #e7eaf0; --muted: #9aa4b5; --border: #2d3441;
+      --accent: #6b93f5; --accent-text: #0b1020;
+      --ok: #5fd08d; --ok-bg: #16301f;
+      --warn: #f0b84a; --warn-bg: #36290e;
+      --err: #ff8d82; --err-bg: #3b1916;
+      --na: #b4bccb; --na-bg: #262c38;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1200px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { margin: 0 0 4px; font-size: 26px; }
+  .lead { margin: 0 0 8px; color: var(--muted); }
+  .source { margin: 0 0 12px; font-size: 14px; }
+  .alert { margin: 0 0 20px; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--warn); background: var(--warn-bg); color: var(--warn); font-size: 14px; }
+  .estimate { margin: 0 0 20px; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--accent); font-size: 14px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  label.title { font-weight: 600; display: block; margin-bottom: 6px; }
+  textarea { width: 100%; min-height: 150px; resize: vertical; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font: 13px/1.4 ui-monospace, Consolas, monospace; white-space: pre; }
+  .hint { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
+  .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 12px; }
+  button { font: inherit; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+  button:disabled { opacity: .5; cursor: default; }
+  select { font: inherit; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); max-width: 100%; }
+  .mapping { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+  .mapping .col { display: flex; flex-direction: column; gap: 3px; min-width: 150px; max-width: 220px; }
+  .mapping .col small { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  progress { width: 220px; height: 10px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { padding: 4px 12px; border-radius: 999px; font-weight: 600; font-size: 13px; border: 2px solid transparent; cursor: pointer; }
+  .chip:hover { filter: brightness(.95); }
+  .chip[aria-pressed="true"] { border-color: currentColor; }
+  .tablewrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; min-width: 1100px; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  td.num { color: var(--muted); width: 36px; }
+  .mono { font-family: ui-monospace, Consolas, monospace; }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 6px; font-size: 12px; font-weight: 700; margin-right: 6px; }
+  .ok { color: var(--ok); background: var(--ok-bg); }
+  .warn { color: var(--warn); background: var(--warn-bg); }
+  .err { color: var(--err); background: var(--err-bg); }
+  .na { color: var(--na); background: var(--na-bg); }
+  .msg { display: block; font-size: 13px; color: var(--muted); margin-top: 3px; }
+  ul.sugg { margin: 0; padding: 0; list-style: none; }
+  ul.sugg li { margin-bottom: 6px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; }
+  ul.sugg li.closed { opacity: .65; }
+  ul.sugg li.chosen { border-color: var(--ok); background: var(--ok-bg); opacity: 1; }
+  ul.sugg button { padding: 1px 8px; font-size: 12px; margin-left: 4px; }
+  ul.sugg li.chosen button { background: var(--ok); color: var(--card); border-color: var(--ok); }
+  .ret { margin-top: 4px; font-size: 13px; }
+  .note { color: var(--muted); font-size: 12px; }
+  label.inline { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+  footer { color: var(--muted); font-size: 12px; margin-top: 24px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>VerifSiret</h1>
+  <p class="lead">Vos SIREN, SIRET et n° de TVA intracommunautaire sont-ils corrects ?</p>
+  <p class="source">
+    <strong>Origine des données :</strong> base SIRENE de l'INSEE (répertoire officiel des entreprises et de leurs établissements),
+    publiée en open data et consultée en direct via l'<a href="https://recherche-entreprises.api.gouv.fr" target="_blank" rel="noopener">API Recherche d'entreprises</a> (api.gouv.fr).
+    Les résultats reflètent l'état de la base au moment de l'analyse.
+  </p>
+  <div class="alert" role="alert">
+    <strong>⚠ Quota de l'API :</strong>
+    plusieurs lignes sont analysées en parallèle sans limite de débit imposée ; si l'API répond « quota dépassé » (HTTP 429),
+    l'analyse se met en pause puis reprend automatiquement.
+    Comptez 1 requête par SIRET distinct, plus 1 à 3 requêtes de recherche pour chaque ligne sans SIRET valide trouvé dans SIRENE.
+    Gardez la page ouverte pendant l'analyse.
+  </div>
+  <p class="estimate" id="estimate" role="status" hidden></p>
+
+  <section class="card">
+    <label class="title" for="input">1. Collez vos données depuis Excel</label>
+    <textarea id="input" placeholder="EXEMPLE : &#10;Mettez les données dans l'ordre que vous souhaitez.&#10;Nom&#9;Code postal&#9;SIRET&#9;TVA&#10;LA POSTE&#9;75015&#9;35600000000048&#9;FR39356000000"></textarea>
+    <p class="hint">Copiez les cellules dans Excel (avec ou sans ligne d'en-têtes) puis collez-les ici. Colonnes reconnues : nom / raison sociale, code postal, SIRET, SIREN, n° de TVA.</p>
+    <div id="mapping-zone" hidden>
+      <div class="row">
+        <strong>2. Colonnes détectées</strong>
+        <label class="inline"><input type="checkbox" id="has-header"> la première ligne contient les en-têtes</label>
+      </div>
+      <div class="mapping" id="mapping"></div>
+    </div>
+    <div class="row">
+      <button class="primary" id="run" disabled>Lancer l'analyse</button>
+      <button id="stop" hidden>Arrêter</button>
+      <progress id="progress" value="0" max="1" hidden></progress>
+      <span id="progress-text" class="note"></span>
+    </div>
+  </section>
+
+  <section class="card" id="results-card" hidden>
+    <div class="row" style="margin-top:0; justify-content: space-between;">
+      <div class="chips" id="summary"></div>
+      <div class="row" style="margin-top:0;">
+        <label class="inline">Établissements :
+          <select id="state-filter">
+            <option value="all">Tous</option>
+            <option value="open">Ouverts</option>
+            <option value="closed">Fermés</option>
+          </select>
+        </label>
+        <label class="inline"><input type="checkbox" id="only-issues"> Afficher uniquement les anomalies</label>
+        <button type="button" id="export" disabled>Exporter vers Excel</button>
+      </div>
+    </div>
+    <div class="tablewrap" style="margin-top:12px;">
+      <table>
+        <thead><tr><th>#</th><th>Saisi</th><th>SIREN</th><th>SIRET</th><th>TVA intracom</th><th>Propositions</th></tr></thead>
+        <tbody id="results"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    Les données collées ne sont envoyées qu'à cette API publique, uniquement les SIRET, noms et codes postaux nécessaires à la vérification.
+  </footer>
+</main>
+
+<script>
+(() => {
+  'use strict';
+
+  const API = 'https://recherche-entreprises.api.gouv.fr/search';
+  const FIELDS = [
+    ['', '— ignorer —'], ['nom', 'Nom / raison sociale'], ['cp', 'Code postal'],
+    ['siret', 'SIRET'], ['siren', 'SIREN'], ['tva', 'TVA intracom'],
+  ];
+  const HEADER_PATTERNS = {
+    siret: /siret/,
+    siren: /siren/,
+    tva: /tva|intra|\bvat\b/,
+    cp: /code.?postal|^cp$|postal|\bzip\b/,
+    nom: /nom|raison|societe|denomination|client|fournisseur|tiers|\bname\b/,
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const input = $('input'), mappingZone = $('mapping-zone'), mappingEl = $('mapping');
+  const hasHeader = $('has-header'), runBtn = $('run'), stopBtn = $('stop');
+  const progress = $('progress'), progressText = $('progress-text');
+  const resultsCard = $('results-card'), resultsEl = $('results'), summaryEl = $('summary');
+  const onlyIssues = $('only-issues'), stateFilter = $('state-filter'), exportBtn = $('export');
+
+  let table = [];          // lignes de cellules collées
+  let rowsOut = [];        // résultats d'analyse
+  let aborted = false;
+  let chipFilter = 'all';   // all | ok | warn | err | na
+
+  // ---------- utilitaires ----------
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const norm = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  const digits = (s) => String(s ?? '').replace(/\D/g, '');
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  function luhnOk(num) {
+    let sum = 0;
+    for (let i = 0; i < num.length; i++) {
+      let d = +num[num.length - 1 - i];
+      if (i % 2 === 1) { d *= 2; if (d > 9) d -= 9; }
+      sum += d;
+    }
+    return sum % 10 === 0;
+  }
+  // La Poste (SIREN 356000000) : certains SIRET ne respectent pas Luhn mais ont une somme des chiffres multiple de 5.
+  function siretKeyOk(siret) {
+    if (siret.startsWith('356000000') && [...siret].reduce((a, c) => a + +c, 0) % 5 === 0) return true;
+    return luhnOk(siret);
+  }
+  const sirenKeyOk = luhnOk;
+
+  // Excel supprime les zéros initiaux : on les restaure si la longueur le suggère.
+  function cleanNumber(raw, len) {
+    let d = digits(raw), padded = false;
+    if (d.length && d.length < len && d.length >= len - 2) { d = d.padStart(len, '0'); padded = true; }
+    return { value: d, padded };
+  }
+
+  function tvaFrKey(siren) { return String((12 + 3 * (Number(siren) % 97)) % 97).padStart(2, '0'); }
+
+  // ---------- parsing & détection des colonnes ----------
+  function parse(text) {
+    const lines = text.replace(/\r/g, '').split('\n').filter((l) => l.trim() !== '');
+    if (!lines.length) return [];
+    const sep = lines.some((l) => l.includes('\t')) ? '\t' : (lines[0].includes(';') ? ';' : '\t');
+    return lines.map((l) => l.split(sep).map((c) => c.trim().replace(/^"(.*)"$/, '$1')));
+  }
+
+  function detectByHeader(row) {
+    const map = {};
+    const used = new Set();
+    // ordre de priorité : champs les plus spécifiques d'abord
+    for (const f of ['siret', 'siren', 'tva', 'cp', 'nom']) {
+      const idx = row.findIndex((c, i) => !used.has(i) && HEADER_PATTERNS[f].test(norm(c)));
+      if (idx >= 0) { map[idx] = f; used.add(idx); }
+    }
+    return map;
+  }
+
+  function detectByContent(rows) {
+    const ncol = Math.max(...rows.map((r) => r.length));
+    const sample = rows.slice(0, 50);
+    const map = {};
+    const used = new Set();
+    const score = {
+      siret: (v) => digits(v).length >= 12 && digits(v).length <= 14 && /^[\d\s.]+$/.test(v),
+      siren: (v) => /^[\d\s.]+$/.test(v) && digits(v).length >= 7 && digits(v).length <= 9,
+      tva: (v) => /^[A-Za-z]{2}[\s\d.A-Za-z]{6,}$/.test(v.replace(/\s/g, '')) && /\d{6}/.test(v),
+      cp: (v) => /^\d{4,5}$/.test(v.trim()),
+    };
+    for (const f of ['siret', 'tva', 'siren', 'cp']) {
+      let best = -1, bestRatio = 0.6;
+      for (let i = 0; i < ncol; i++) {
+        if (used.has(i)) continue;
+        const vals = sample.map((r) => r[i] ?? '').filter((v) => v !== '');
+        if (!vals.length) continue;
+        const ratio = vals.filter(score[f]).length / vals.length;
+        if (ratio >= bestRatio) { best = i; bestRatio = ratio; }
+      }
+      if (best >= 0) { map[best] = f; used.add(best); }
+    }
+    for (let i = 0; i < ncol; i++) if (!used.has(i)) { map[i] = 'nom'; break; }
+    return map;
+  }
+
+  function refreshMapping(autoDetect) {
+    table = parse(input.value);
+    if (!table.length) { mappingZone.hidden = true; runBtn.disabled = true; updateEstimate(); return; }
+    let map;
+    if (autoDetect) {
+      const byHeader = detectByHeader(table[0]);
+      const header = Object.keys(byHeader).length > 0;
+      hasHeader.checked = header;
+      map = header ? byHeader : detectByContent(table);
+    } else {
+      map = hasHeader.checked ? detectByHeader(table[0]) : currentMapping();
+    }
+    const ncol = Math.max(...table.map((r) => r.length));
+    const first = hasHeader.checked ? 1 : 0;
+    mappingEl.innerHTML = '';
+    for (let i = 0; i < ncol; i++) {
+      const col = document.createElement('div');
+      col.className = 'col';
+      const sel = document.createElement('select');
+      sel.dataset.col = i;
+      for (const [v, label] of FIELDS) {
+        const o = document.createElement('option');
+        o.value = v; o.textContent = label;
+        if ((map[i] || '') === v) o.selected = true;
+        sel.appendChild(o);
+      }
+      const head = document.createElement('small');
+      head.textContent = (hasHeader.checked ? table[0][i] : table[first]?.[i]) || `Colonne ${i + 1}`;
+      col.append(sel, head);
+      mappingEl.appendChild(col);
+    }
+    mappingZone.hidden = false;
+    runBtn.disabled = table.length <= first;
+    updateEstimate();
+  }
+
+  function currentMapping() {
+    const map = {};
+    mappingEl.querySelectorAll('select').forEach((s) => { if (s.value) map[s.dataset.col] = s.value; });
+    return map;
+  }
+
+  // ---------- estimation de la durée ----------
+  // Fourchette du nombre de requêtes : 1 par SIRET valide distinct, puis 1 à 3 par ligne sans SIRET valide
+  // (les SIRET introuvables dans SIRENE déclenchent aussi des recherches : non prévisibles ici).
+  function estimateRequests() {
+    const map = currentMapping();
+    const colSiret = Object.keys(map).find((k) => map[k] === 'siret');
+    const rows = table.slice(hasHeader.checked ? 1 : 0).filter((r) => r.some((c) => c !== ''));
+    const sirets = new Set();
+    let others = 0;
+    for (const r of rows) {
+      const s = colSiret === undefined ? '' : cleanNumber(r[colSiret] ?? '', 14).value;
+      if (s.length === 14 && siretKeyOk(s)) sirets.add(s); else others++;
+    }
+    return { rows: rows.length, min: sirets.size + others, max: sirets.size + 3 * others };
+  }
+
+  // débit moyen observé (quelques lignes en parallèle) ; plus lent si l'API répond « quota dépassé »
+  const EST_REQ_PER_SEC = 5;
+  const requestsDuration = (n) => n / EST_REQ_PER_SEC;
+  function formatDuration(sec) {
+    if (sec < 60) return 'moins d\'1 minute';
+    const min = Math.round(sec / 60);
+    return min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')}`;
+  }
+
+  // « 45 s », « 3 min 05 s »
+  function formatClock(sec) {
+    const s = Math.max(0, Math.round(sec));
+    return s < 60 ? `${s} s` : `${Math.floor(s / 60)} min ${String(s % 60).padStart(2, '0')} s`;
+  }
+
+  const estimateEl = $('estimate');
+  let running = false; // pendant l'analyse, l'en-tête affiche le temps restant réel
+  function updateEstimate() {
+    if (running) return;
+    const el = estimateEl;
+    const e = table.length ? estimateRequests() : { rows: 0 };
+    el.hidden = e.rows === 0;
+    if (!e.rows) { el.textContent = ''; return; }
+    const lo = formatDuration(requestsDuration(e.min)), hi = formatDuration(requestsDuration(e.max));
+    const reqs = e.min === e.max ? `${e.min}` : `${e.min} à ${e.max}`;
+    el.innerHTML = `<strong>⏱ Durée estimée : ${lo === hi ? esc(lo) : `${esc(lo)} à ${esc(hi)}`}</strong> · ` +
+      `${e.rows} ligne${e.rows > 1 ? 's' : ''}, ${reqs} requête${e.max > 1 ? 's' : ''} ; plus long si l'API signale un dépassement de quota.`;
+  }
+
+  input.addEventListener('input', () => refreshMapping(true));
+  mappingEl.addEventListener('change', updateEstimate);
+  hasHeader.addEventListener('change', () => {
+    // changer l'option réinitialise la détection selon le nouvel état
+    table = parse(input.value);
+    const map = hasHeader.checked ? detectByHeader(table[0] || []) : detectByContent(table);
+    refreshMappingWith(map);
+  });
+  function refreshMappingWith(map) {
+    const keep = hasHeader.checked;
+    refreshMapping(false);
+    hasHeader.checked = keep;
+    mappingEl.querySelectorAll('select').forEach((s) => { s.value = map[s.dataset.col] || ''; });
+    updateEstimate();
+  }
+
+  // ---------- API ----------
+  const CONCURRENCY = 4, MAX_RETRIES = 8, MAX_BACKOFF_MS = 60000;
+  let sent = 0;         // requêtes envoyées
+  let blockedUntil = 0; // pause commune à toutes les lignes après une réponse « quota dépassé »
+  let backoff = 0;
+
+  // Aucune limitation a priori : on ne ralentit que si l'API répond HTTP 429 (quota dépassé).
+  // La pause est alors partagée par toutes les lignes en cours d'analyse.
+  async function api(params) {
+    const url = API + '?' + new URLSearchParams(params);
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      for (let w = blockedUntil - Date.now(); w > 0 && !aborted; w = blockedUntil - Date.now()) await sleep(Math.min(w, 250));
+      if (aborted) throw new Error('Analyse arrêtée');
+      sent++;
+      const res = await fetch(url);
+      if (res.status === 429) {
+        const retryAfter = Number(res.headers.get('Retry-After')) * 1000;
+        backoff = Math.min(retryAfter > 0 ? retryAfter : (backoff ? backoff * 2 : 2000), MAX_BACKOFF_MS);
+        blockedUntil = Math.max(blockedUntil, Date.now() + backoff);
+        continue;
+      }
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      backoff = 0;
+      return res.json();
+    }
+    throw new Error('Quota de l\'API dépassé (HTTP 429)');
+  }
+
+  // Les caches stockent les promesses : deux lignes identiques traitées en parallèle ne font qu'une requête.
+  const siretCache = new Map(), sirenCache = new Map();
+  function cached(map, key, fn) {
+    if (!map.has(key)) map.set(key, fn().catch((e) => { map.delete(key); throw e; }));
+    return map.get(key);
+  }
+
+  function findEtab(r, siret) {
+    if (r.siege?.siret === siret) return r.siege;
+    return (r.matching_etablissements || []).find((e) => e.siret === siret) || null;
+  }
+
+  const lookupSiret = (siret) => cached(siretCache, siret, async () => {
+    const data = await api({ q: siret, per_page: 5 });
+    for (const r of data.results || []) {
+      const etab = findEtab(r, siret);
+      if (etab) return { ul: r, etab };
+    }
+    return null;
+  });
+
+  const lookupSiren = (siren) => cached(sirenCache, siren, async () => {
+    const data = await api({ q: siren, per_page: 5 });
+    return (data.results || []).find((r) => r.siren === siren) || null;
+  });
+
+  // Recherche par nom (+ code postal) : propositions d'établissements
+  async function suggest(nom, cp) {
+    const q = nom.replace(/[^\p{L}\p{N}\s&'-]/gu, ' ').replace(/\s+/g, ' ').trim();
+    if (q.length < 2) return { list: [], note: 'nom absent ou trop court pour une recherche' };
+    const toList = (data) => {
+      const out = [];
+      for (const r of data.results || []) {
+        const etabs = r.matching_etablissements?.length ? r.matching_etablissements : [r.siege];
+        for (const e of etabs.slice(0, 3)) {
+          if (!e?.siret) continue;
+          out.push(toOption(r, e));
+        }
+      }
+      return out.slice(0, 6);
+    };
+    const cpDigits = digits(cp);
+    if (cpDigits.length >= 4) {
+      const code = cpDigits.padStart(5, '0');
+      const list = toList(await api({ q, code_postal: code, per_page: 5 }));
+      if (list.length) return { list, note: 'recherche par nom et code postal' };
+    }
+    const list = toList(await api({ q, per_page: 5 }));
+    return { list, note: cpDigits.length >= 4 ? 'aucun résultat avec ce code postal : recherche sur le nom seul' : 'pas de code postal : recherche sur le nom seul' };
+  }
+
+  function toOption(ul, e) {
+    return {
+      siret: e.siret, siren: ul.siren, nom: ul.nom_complet, adresse: e.adresse || '', cp: e.code_postal || '',
+      closed: e.etat_administratif !== 'A', siege: e.siret === ul.siege?.siret,
+    };
+  }
+
+  // Établissements d'une entreprise connue par son SIREN : ceux du code postal saisi, puis le siège
+  async function optionsOfCompany(ul, cp) {
+    const list = [];
+    const cpDigits = digits(cp);
+    if (cpDigits.length >= 4) {
+      const data = await api({ q: ul.nom_complet, code_postal: cpDigits.padStart(5, '0'), per_page: 10 });
+      const r = (data.results || []).find((x) => x.siren === ul.siren);
+      (r?.matching_etablissements || []).forEach((e) => list.push(toOption(ul, e)));
+    }
+    if (ul.siege?.siret && !list.some((o) => o.siret === ul.siege.siret)) list.push(toOption(ul, ul.siege));
+    return list.slice(0, 6);
+  }
+
+  // Recherche avec ce que l'on sait : SIREN (saisi ou reconstitué), puis nom et code postal
+  async function search(siren, nom, cp) {
+    const notes = [];
+    let ul = null, list = [];
+    if (siren) {
+      ul = await lookupSiren(siren);
+      if (ul) {
+        list = await optionsOfCompany(ul, cp);
+        notes.push(`entreprise trouvée par son SIREN ${siren}`);
+      } else {
+        notes.push(`SIREN ${siren} absent de la base SIRENE`);
+      }
+    }
+    if (!list.length && nom) {
+      const r = await suggest(nom, cp);
+      list = r.list;
+      notes.push(r.note);
+    } else if (!list.length) {
+      notes.push('rien à rechercher : ni SIREN valide, ni nom');
+    }
+    return { list, ul, note: notes.join(' · ') };
+  }
+
+  // ---------- analyse d'une ligne ----------
+  const st = (level, label, msgs = []) => ({ level, label, msgs });
+  const CHOSEN = 'Choisi dans les propositions';
+
+  function nameMismatch(saisi, officiel) {
+    const words = (s) => norm(s).split(/[^a-z0-9]+/).filter((w) => w.length > 2);
+    const a = words(saisi), b = new Set(words(officiel));
+    return a.length > 0 && !a.some((w) => b.has(w));
+  }
+
+  // Décompose un n° de TVA saisi
+  function parseTva(raw) {
+    const value = String(raw ?? '').replace(/[\s.\-]/g, '').toUpperCase();
+    if (!value) return { kind: 'empty', value };
+    if (!value.startsWith('FR')) return { kind: /^[A-Z]{2}/.test(value) ? 'foreign' : 'noprefix', value };
+    const m = /^FR([0-9A-Z]{2})(\d{9})$/.exec(value);
+    if (!m) return { kind: 'badformat', value };
+    const [, key, siren] = m;
+    return { kind: 'fr', value, key, siren, keyOk: !/^\d\d$/.test(key) || key === tvaFrKey(siren) };
+  }
+  const tvaFromSiren = (siren) => `FR${tvaFrKey(siren)}${siren}`;
+
+  // Identifiants retenus : valide ce qui est saisi et reconstitue ce qui manque.
+  // Priorité SIRET > SIREN > TVA ; un SIRET introuvable dans SIRENE passe en dernier.
+  function reconstruct(c, siretFound) {
+    const fromSiret = c.siretOk ? [c.siret.slice(0, 9), 'Recalculé depuis le SIRET'] : null;
+    const fromIn = c.sirenOk ? [c.siren, 'Saisi'] : null;
+    const fromTva = c.tva.kind === 'fr' && c.tva.keyOk && sirenKeyOk(c.tva.siren) ? [c.tva.siren, 'Recalculé depuis la TVA'] : null;
+    const [siren, sirenOrigin] = (siretFound ? [fromSiret, fromIn, fromTva] : [fromIn, fromTva, fromSiret]).find(Boolean) || ['', ''];
+    const ids = {
+      siret: siretFound ? { value: c.siret, origin: 'Saisi' } : null,
+      siren: siren ? { value: siren, origin: sirenOrigin } : null,
+      tva: null,
+    };
+    if (c.tva.kind === 'foreign') ids.tva = { value: c.tva.value, origin: 'Saisi' };
+    else if (c.tva.kind === 'fr' && c.tva.keyOk && c.tva.siren === siren) ids.tva = { value: c.tva.value, origin: 'Saisi' };
+    else if (siren) ids.tva = { value: tvaFromSiren(siren), origin: c.tva.kind === 'empty' ? 'Recalculé depuis le SIREN' : 'Corrigé depuis le SIREN' };
+    return ids;
+  }
+
+  function newOut(rec) {
+    return {
+      rec, siren: st('na', 'Non renseigné'), siret: st('na', 'Non renseigné'), tva: st('na', 'Non renseigné'),
+      ids: { siren: null, siret: null, tva: null }, options: [], optionsNote: '', choiceIndex: null, choice: null,
+      state: 'unknown', officiel: null,
+    };
+  }
+
+  async function analyse(rec) {
+    const out = newOut(rec);
+    const c = { siret: rec.siret.value, siren: rec.siren.value, tva: parseTva(rec.tva) };
+    c.siretOk = c.siret.length === 14 && siretKeyOk(c.siret);
+    c.sirenOk = c.siren.length === 9 && sirenKeyOk(c.siren);
+
+    // 1. validation du SIRET saisi
+    let found = null;
+    if (c.siret) {
+      const msgs = rec.siret.padded ? ['zéro initial restauré (Excel l\'avait supprimé)'] : [];
+      if (c.siret.length !== 14) {
+        out.siret = st('err', 'Format invalide', [`${c.siret.length} chiffres au lieu de 14`, ...msgs]);
+      } else if (!c.siretOk) {
+        out.siret = st('err', 'Clé invalide', ['échec du contrôle de Luhn : ce SIRET ne peut pas exister', ...msgs]);
+      } else {
+        found = await lookupSiret(c.siret);
+        if (!found) {
+          out.siret = st('err', 'Introuvable', ['format correct mais absent de la base SIRENE', ...msgs]);
+        } else {
+          const { ul, etab: e } = found, open = e.etat_administratif === 'A', alive = ul.etat_administratif === 'A';
+          const mismatch = rec.nom && nameMismatch(rec.nom, ul.nom_complet);
+          const m = [ul.nom_complet, e.adresse].filter(Boolean);
+          if (!alive) m.unshift('entreprise cessée');
+          if (!open) m.unshift('établissement fermé' + (e.date_fermeture ? ` depuis le ${e.date_fermeture}` : ''));
+          if (mismatch) m.push('⚠ nom différent de celui saisi');
+          out.state = open && alive ? 'open' : 'closed';
+          out.officiel = { nom: ul.nom_complet, adresse: e.adresse || '' };
+          out.siret = st(!open || !alive || mismatch ? 'warn' : 'ok', !open ? 'Fermé' : (!alive ? 'Entreprise cessée' : 'Valide'), [...m, ...msgs]);
+        }
+      }
+    }
+
+    // 2. reconstitution des identifiants manquants
+    const ids = out.ids = reconstruct(c, !!found);
+    const sirenRet = ids.siren?.value || '';
+
+    // 3. pas de SIRET retenu : recherche avec SIREN / TVA / nom / code postal et propositions
+    let ul = found?.ul || null, ulChecked = !!found;
+    if (!found) {
+      const res = await search(sirenRet, rec.nom, rec.cp);
+      out.options = res.list;
+      out.optionsNote = res.note;
+      ul = res.ul;
+      ulChecked = !!sirenRet;
+      if (ul) {
+        out.state = ul.etat_administratif === 'A' ? 'open' : 'closed';
+        out.officiel = { nom: ul.nom_complet, adresse: ul.siege?.adresse || '' };
+      }
+    }
+
+    // 4. statut du SIREN
+    if (c.siren) {
+      const msgs = rec.siren.padded ? ['zéro initial restauré'] : [];
+      if (c.siren.length !== 9) out.siren = st('err', 'Format invalide', [`${c.siren.length} chiffres au lieu de 9`, ...msgs]);
+      else if (!c.sirenOk) out.siren = st('err', 'Clé invalide', ['échec du contrôle de Luhn', ...msgs]);
+      else if (sirenRet && sirenRet !== c.siren) {
+        out.siren = st('warn', 'Incohérent', [`différent du SIREN retenu (${sirenRet}, ${ids.siren.origin.toLowerCase()})`, ...msgs]);
+      } else if (ul && ul.siren === c.siren) {
+        const alive = ul.etat_administratif === 'A';
+        out.siren = st(alive ? 'ok' : 'warn', alive ? 'Valide' : 'Entreprise cessée', [ul.nom_complet, ...msgs]);
+      } else if (ulChecked) {
+        out.siren = st('err', 'Introuvable', ['absent de la base SIRENE', ...msgs]);
+      } else {
+        out.siren = st('ok', 'Valide', ['clé correcte', ...msgs]);
+      }
+    } else if (ids.siren) {
+      out.siren = st('ok', 'Recalculé');
+    }
+
+    // 5. statut de la TVA
+    const t = c.tva;
+    if (t.kind === 'foreign') {
+      out.tva = st('na', 'Non vérifiable', ['TVA hors France : seul le format France est contrôlé ici']);
+    } else if (t.kind === 'noprefix') {
+      out.tva = st('na', 'Non vérifiable', ['préfixe pays manquant']);
+    } else if (t.kind === 'badformat') {
+      out.tva = st('err', 'Format invalide', ['attendu : FR + clé (2 caractères) + SIREN (9 chiffres)']);
+    } else if (t.kind === 'fr') {
+      const msgs = [];
+      let level = 'ok', label = 'Valide';
+      if (!t.keyOk) { level = 'err'; label = 'Clé invalide'; msgs.push(`clé attendue pour le SIREN ${t.siren} : ${tvaFrKey(t.siren)}`); }
+      if (sirenRet && sirenRet !== t.siren) {
+        if (level === 'ok') label = 'SIREN incohérent';
+        level = 'err';
+        msgs.push(`le SIREN de la TVA (${t.siren}) diffère du SIREN retenu (${sirenRet})`);
+      } else if (level === 'ok') {
+        msgs.push(sirenRet ? 'clé correcte et cohérente avec le SIREN' : 'clé correcte (aucun SIRET/SIREN à comparer)');
+      }
+      out.tva = st(level, label, msgs);
+    } else if (ids.tva) {
+      out.tva = st('ok', 'Recalculée');
+    }
+    return out;
+  }
+
+  // identifiants effectivement retenus (la proposition choisie par l'utilisateur prime)
+  function effective(o) {
+    const ch = o.choice;
+    if (!ch) return { siren: o.ids.siren, siret: o.ids.siret, tva: o.ids.tva, state: o.state, officiel: o.officiel };
+    const t = parseTva(o.rec.tva);
+    let tva;
+    if (t.kind === 'foreign' || (t.kind === 'fr' && t.keyOk && t.siren === ch.siren)) tva = { value: t.value, origin: 'Saisi' };
+    else tva = { value: tvaFromSiren(ch.siren), origin: 'Recalculé depuis la proposition choisie' };
+    return {
+      siren: { value: ch.siren, origin: CHOSEN }, siret: { value: ch.siret, origin: CHOSEN }, tva,
+      state: ch.closed ? 'closed' : 'open', officiel: { nom: ch.nom, adresse: ch.adresse },
+    };
+  }
+
+  // pire niveau de la ligne (les champs non renseignés ne comptent que si tout est vide)
+  function rowLevel(o) {
+    if (o.choice) return 'ok'; // l'utilisateur a tranché
+    const levels = [o.siren.level, o.siret.level, o.tva.level].filter((l) => l !== 'na');
+    let level = ['err', 'warn', 'ok'].find((l) => levels.includes(l)) || 'na';
+    if (!o.ids.siret && o.options.length && level !== 'err') level = 'warn'; // un SIRET est à choisir
+    return level;
+  }
+
+  // ---------- rendu ----------
+  function badge(s) { return `<span class="badge ${s.level}">${esc(s.label)}</span>`; }
+  function statusCell(s) { return badge(s) + s.msgs.map((m) => `<span class="msg">${esc(m)}</span>`).join(''); }
+
+  // valeur saisie, statut, puis valeur retenue si elle diffère de la saisie
+  function idCell(entered, enteredNorm, status, retained) {
+    let h = (entered ? `<span class="mono">${esc(entered)}</span><br>` : '') + statusCell(status);
+    if (retained?.value && retained.value !== enteredNorm) {
+      h += `<div class="ret">→ Retenu : <span class="mono">${esc(retained.value)}</span><span class="note"> · ${esc(retained.origin)}</span></div>`;
+    }
+    return h;
+  }
+
+  function optionsCell(o) {
+    if (!o.options.length && !o.optionsNote) return '';
+    const items = o.options.map((s, k) => {
+      const chosen = o.choiceIndex === k;
+      return `<li class="${s.closed ? 'closed' : ''} ${chosen ? 'chosen' : ''}"><strong>${esc(s.nom)}</strong>` +
+        `${s.siege ? ' <span class="badge na">siège</span>' : ''}${s.closed ? ' <span class="badge na">fermé</span>' : ''}<br>` +
+        `<span class="mono">${esc(s.siret)}</span> <button type="button" data-choose="${k}">${chosen ? '✓ Choisi (annuler)' : 'Choisir'}</button><br>` +
+        `<span class="note">${esc(s.adresse || s.cp)}</span></li>`;
+    });
+    return (o.options.length ? `<ul class="sugg">${items.join('')}</ul>` : '<span class="note">Aucune proposition trouvée</span><br>') +
+      (o.optionsNote ? `<span class="note">${esc(o.optionsNote)}</span>` : '');
+  }
+
+  function renderRow(o, n) {
+    const r = o.rec, eff = effective(o);
+    const saisi = [`<strong>${esc(r.nom) || '<span class="note">(sans nom)</span>'}</strong>`, r.cp ? esc(r.cp) : ''].filter(Boolean).join('<br>');
+    const level = rowLevel(o);
+    const tr = document.createElement('tr');
+    tr.dataset.idx = n - 1;
+    tr.dataset.issue = level === 'ok' ? '0' : '1';
+    tr.dataset.state = eff.state;
+    tr.dataset.level = level;
+    tr.innerHTML = `<td class="num">${n}</td><td>${saisi}</td>` +
+      `<td>${idCell(r.siren.raw, r.siren.value, o.siren, eff.siren)}</td>` +
+      `<td>${idCell(r.siret.raw, r.siret.value, o.siret, eff.siret)}</td>` +
+      `<td>${idCell(r.tva, parseTva(r.tva).value, o.tva, eff.tva)}</td>` +
+      `<td>${optionsCell(o)}</td>`;
+    return tr;
+  }
+
+  function renderSummary() {
+    const count = { ok: 0, warn: 0, err: 0, na: 0 };
+    rowsOut.forEach((o) => { count[rowLevel(o)]++; });
+    const chip = (key, cls, label) =>
+      `<button type="button" class="chip ${cls}" data-filter="${key}" aria-pressed="${chipFilter === key}">${label}</button>`;
+    summaryEl.innerHTML =
+      chip('all', 'na', `${rowsOut.length} ligne(s)`) +
+      chip('ok', 'ok', `${count.ok} OK`) +
+      chip('warn', 'warn', `${count.warn} à vérifier`) +
+      chip('err', 'err', `${count.err} en erreur`) +
+      (count.na ? chip('na', 'na', `${count.na} sans identifiant`) : '');
+  }
+
+  summaryEl.addEventListener('click', (ev) => {
+    const btn = ev.target.closest('button[data-filter]');
+    if (!btn) return;
+    // un second clic sur le chip actif revient à « toutes les lignes »
+    chipFilter = chipFilter === btn.dataset.filter ? 'all' : btn.dataset.filter;
+    renderSummary();
+    applyFilter();
+  });
+
+  function applyFilter() {
+    resultsEl.querySelectorAll('tr').forEach((tr) => { tr.hidden = (chipFilter !== 'all' && tr.dataset.level !== chipFilter) ||
+        (onlyIssues.checked && tr.dataset.issue !== '1') ||
+        (stateFilter.value !== 'all' && tr.dataset.state !== stateFilter.value);
+    });
+    const n = [...resultsEl.children].filter((tr) => !tr.hidden).length;
+    exportBtn.textContent = `Exporter vers Excel (${n} ligne${n > 1 ? 's' : ''})`;
+    exportBtn.disabled = n === 0;
+  }
+  onlyIssues.addEventListener('change', applyFilter);
+  stateFilter.addEventListener('change', applyFilter);
+
+  // choix (ou annulation du choix) d'une proposition : la ligne est réaffichée avec les identifiants retenus
+  resultsEl.addEventListener('click', (ev) => {
+    const btn = ev.target.closest('button[data-choose]');
+    if (!btn) return;
+    const tr = btn.closest('tr'), i = Number(tr.dataset.idx), o = rowsOut[i], k = Number(btn.dataset.choose);
+    o.choiceIndex = o.choiceIndex === k ? null : k;
+    o.choice = o.choiceIndex === null ? null : o.options[k];
+    tr.replaceWith(renderRow(o, i + 1));
+    renderSummary();
+    applyFilter();
+  });
+
+  // ---------- export Excel (.xlsx minimal, sans dépendance) ----------
+  const LEVEL_LABEL = { ok: 'OK', warn: 'À vérifier', err: 'Erreur', na: 'Non renseigné' };
+  const STATE_LABEL = { open: 'Ouvert', closed: 'Fermé', unknown: 'Inconnu' };
+  const COLUMNS = [
+    ['N°', 5], ['Nom saisi', 32], ['Code postal saisi', 12], ['SIREN saisi', 13], ['SIRET saisi', 18], ['TVA saisie', 18],
+    ['Résultat ligne', 14],
+    ['SIREN retenu', 13],
+    ['État', 10], ['Nom officiel (SIRENE)', 32], ['Adresse officielle', 45], ['Propositions (✔ = choisie)', 70],
+  ];
+
+  function exportRow(o, n) {
+    const r = o.rec, eff = effective(o);
+    const props = o.options
+      .map((x, k) => `${o.choiceIndex === k ? '✔ ' : ''}${x.siret} – ${x.nom}${x.siege ? ' (siège)' : ''}${x.closed ? ' (fermé)' : ''} – ${x.adresse || x.cp}`).join('\n');
+    return [
+      n, r.nom, r.cp, r.siren.raw, r.siret.raw, r.tva,
+      LEVEL_LABEL[rowLevel(o)],
+      eff.siren?.value || '',
+      STATE_LABEL[eff.state], eff.officiel?.nom || '', eff.officiel?.adresse || '', props,
+    ];
+  }
+
+  const xmlEsc = (v) => String(v ?? '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
+    .replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const colName = (i) => String.fromCharCode(65 + i); // moins de 26 colonnes
+
+  function sheetXml(rows) {
+    const cell = (v, i, y, style) => (typeof v === 'number'
+      ? `<c r="${colName(i)}${y}" s="${style}"><v>${v}</v></c>`
+      : `<c r="${colName(i)}${y}" s="${style}" t="inlineStr"><is><t xml:space="preserve">${xmlEsc(v)}</t></is></c>`);
+    const body = [COLUMNS.map((c) => c[0]), ...rows].map((row, y) =>
+      `<row r="${y + 1}">${row.map((v, i) => cell(v, i, y + 1, y === 0 ? 1 : 2)).join('')}</row>`).join('');
+    const last = `${colName(COLUMNS.length - 1)}${rows.length + 1}`;
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+      '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>' +
+      `<cols>${COLUMNS.map((c, i) => `<col min="${i + 1}" max="${i + 1}" width="${c[1]}" customWidth="1"/>`).join('')}</cols>` +
+      `<sheetData>${body}</sheetData><autoFilter ref="A1:${last}"/></worksheet>`;
+  }
+
+  // style 1 = en-tête (gras, fond bleu), style 2 = texte (format « @ » : les SIRET restent des textes)
+  const STYLES_XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+    '<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>' +
+    '<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>' +
+    '<fill><patternFill patternType="solid"><fgColor rgb="FFDCE6FA"/></patternFill></fill></fills>' +
+    '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>' +
+    '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+    '<cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
+    '<xf numFmtId="49" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyNumberFormat="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>' +
+    '<xf numFmtId="49" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf></cellXfs>' +
+    '</styleSheet>';
+
+  const crcTable = (() => {
+    const t = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+      t[n] = c >>> 0;
+    }
+    return t;
+  })();
+  function crc32(bytes) {
+    let c = 0xFFFFFFFF;
+    for (let i = 0; i < bytes.length; i++) c = crcTable[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+
+  // Archive ZIP sans compression (méthode « stored »), suffisante pour un .xlsx
+  function zip(files) {
+    const enc = new TextEncoder(), chunks = [], central = [];
+    const now = new Date();
+    const dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+    const dosDate = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+    // champs [offset, valeur, taille en octets]
+    const header = (size, fields) => {
+      const dv = new DataView(new ArrayBuffer(size));
+      fields.forEach(([o, v, len]) => (len === 4 ? dv.setUint32(o, v, true) : dv.setUint16(o, v, true)));
+      return new Uint8Array(dv.buffer);
+    };
+    let offset = 0;
+    for (const [name, content] of files) {
+      const nameB = enc.encode(name), data = enc.encode(content), crc = crc32(data);
+      chunks.push(
+        header(30, [[0, 0x04034b50, 4], [4, 20, 2], [6, 0x0800, 2], [8, 0, 2], [10, dosTime, 2], [12, dosDate, 2],
+          [14, crc, 4], [18, data.length, 4], [22, data.length, 4], [26, nameB.length, 2], [28, 0, 2]]),
+        nameB, data);
+      central.push(
+        header(46, [[0, 0x02014b50, 4], [4, 20, 2], [6, 20, 2], [8, 0x0800, 2], [10, 0, 2], [12, dosTime, 2], [14, dosDate, 2],
+          [16, crc, 4], [20, data.length, 4], [24, data.length, 4], [28, nameB.length, 2], [30, 0, 2], [32, 0, 2],
+          [34, 0, 2], [36, 0, 2], [38, 0, 4], [42, offset, 4]]),
+        nameB);
+      offset += 30 + nameB.length + data.length;
+    }
+    const cdSize = central.reduce((a, c) => a + c.length, 0);
+    const end = header(22, [[0, 0x06054b50, 4], [8, files.length, 2], [10, files.length, 2], [12, cdSize, 4], [16, offset, 4]]);
+    return new Blob([...chunks, ...central, end], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  }
+
+  function buildXlsx(rows) {
+    const X = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+    const REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+    const PKG = 'http://schemas.openxmlformats.org/package/2006/relationships';
+    const SS = 'application/vnd.openxmlformats-officedocument.spreadsheetml';
+    return zip([
+      ['[Content_Types].xml', X + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>' +
+        `<Override PartName="/xl/workbook.xml" ContentType="${SS}.sheet.main+xml"/>` +
+        `<Override PartName="/xl/worksheets/sheet1.xml" ContentType="${SS}.worksheet+xml"/>` +
+        `<Override PartName="/xl/styles.xml" ContentType="${SS}.styles+xml"/></Types>`],
+      ['_rels/.rels', X + `<Relationships xmlns="${PKG}"><Relationship Id="rId1" Type="${REL}/officeDocument" Target="xl/workbook.xml"/></Relationships>`],
+      ['xl/workbook.xml', X + `<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="${REL}"><sheets><sheet name="VerifSiret" sheetId="1" r:id="rId1"/></sheets></workbook>`],
+      ['xl/_rels/workbook.xml.rels', X + `<Relationships xmlns="${PKG}"><Relationship Id="rId1" Type="${REL}/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="${REL}/styles" Target="styles.xml"/></Relationships>`],
+      ['xl/styles.xml', STYLES_XML],
+      ['xl/worksheets/sheet1.xml', sheetXml(rows)],
+    ]);
+  }
+
+  exportBtn.addEventListener('click', () => {
+    // exporte les lignes actuellement affichées (les filtres sont donc pris en compte)
+    const rows = [...resultsEl.children].filter((tr) => !tr.hidden).map((tr) => exportRow(rowsOut[Number(tr.dataset.idx)], Number(tr.dataset.idx) + 1));
+    if (!rows.length) return;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(buildXlsx(rows));
+    a.download = `verifsiret_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+
+  // ---------- lancement ----------
+  runBtn.addEventListener('click', async () => {
+    const map = currentMapping();
+    const idx = (f) => Object.keys(map).find((k) => map[k] === f);
+    const cols = { nom: idx('nom'), cp: idx('cp'), siret: idx('siret'), siren: idx('siren'), tva: idx('tva') };
+    if (cols.siret === undefined && cols.siren === undefined && cols.tva === undefined) {
+      alert('Associez au moins une colonne SIRET, SIREN ou TVA.');
+      return;
+    }
+    const get = (row, f) => (cols[f] === undefined ? '' : (row[cols[f]] ?? ''));
+    const data = table.slice(hasHeader.checked ? 1 : 0).filter((r) => r.some((c) => c !== ''));
+    const recs = data.map((row) => ({
+      nom: get(row, 'nom'),
+      cp: get(row, 'cp'),
+      siret: { raw: get(row, 'siret'), ...cleanNumber(get(row, 'siret'), 14) },
+      siren: { raw: get(row, 'siren'), ...cleanNumber(get(row, 'siren'), 9) },
+      tva: get(row, 'tva'),
+    }));
+
+    rowsOut = [];
+    chipFilter = 'all';
+    resultsEl.innerHTML = '';
+    resultsCard.hidden = false;
+    aborted = false;
+    runBtn.disabled = true; stopBtn.hidden = false; progress.hidden = false;
+    progress.max = recs.length; progress.value = 0;
+
+    // Analyse en parallèle (CONCURRENCY lignes à la fois) ; le quota de requêtes est géré par api().
+    // Les lignes sont affichées dans l'ordre de saisie, dès que toutes les précédentes sont terminées.
+    const finished = new Array(recs.length);
+    let next = 0;
+    let done = 0;
+    const startedAt = Date.now();
+    const est0 = estimateRequests();
+    running = true;
+    // Temps restant = temps moyen par ligne traitée × lignes restantes (inclut les pauses de quota déjà subies).
+    // Avant la première ligne terminée, on garde l'estimation initiale.
+    const updateProgress = () => {
+      const pause = Math.ceil((blockedUntil - Date.now()) / 1000);
+      const elapsed = (Date.now() - startedAt) / 1000;
+      const left = recs.length - done;
+      const remaining = done > 0 ? elapsed / done * left : requestsDuration((est0.min + est0.max) / 2);
+      progressText.textContent = `${done} / ${recs.length} lignes · ${sent} requêtes envoyées` +
+        (pause > 0 ? ` · quota de l'API dépassé, reprise dans ${pause} s…` : '');
+      estimateEl.innerHTML = `<strong>⏱ Temps restant estimé : ${done > 0 ? '' : '≈ '}${esc(formatClock(remaining))}</strong> · ` +
+        `${done} / ${recs.length} lignes traitées en ${esc(formatClock(elapsed))}, ${left} restante${left > 1 ? 's' : ''}.`;
+    };
+    const flush = () => {
+      while (rowsOut.length < recs.length && finished[rowsOut.length]) {
+        const o = finished[rowsOut.length];
+        rowsOut.push(o);
+        resultsEl.appendChild(renderRow(o, rowsOut.length));
+      }
+      progress.value = rowsOut.length;
+      renderSummary();
+      applyFilter();
+    };
+    const worker = async () => {
+      while (!aborted && next < recs.length) {
+        const i = next++;
+        let o;
+        try {
+          o = await analyse(recs[i]);
+        } catch (e) {
+          if (aborted) return;
+          o = newOut(recs[i]);
+          o.siret = st('warn', 'Erreur réseau', [String(e.message || e)]);
+        }
+        finished[i] = o;
+        done++;
+        flush();
+        updateProgress();
+      }
+    };
+    const timer = setInterval(updateProgress, 500);
+    updateProgress();
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, recs.length) }, worker));
+    clearInterval(timer);
+    running = false;
+    estimateEl.innerHTML = `<strong>⏱ ${aborted ? 'Arrêté' : 'Terminé'} après ${esc(formatClock((Date.now() - startedAt) / 1000))}</strong> · ` +
+      `${done} / ${recs.length} lignes traitées, ${sent} requêtes envoyées.`;
+
+    progressText.textContent = aborted ? `Arrêté (${rowsOut.length} / ${recs.length})` : `Terminé : ${recs.length} ligne(s) analysée(s)`;
+    runBtn.disabled = false; stopBtn.hidden = true; progress.hidden = true;
+  });
+
+  stopBtn.addEventListener('click', () => { aborted = true; });
+})();
+</script>
+</body>
+</html>
