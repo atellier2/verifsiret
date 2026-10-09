@@ -166,6 +166,7 @@
 
   let table = [];          // lignes de cellules collées
   let rowsOut = [];        // résultats d'analyse
+  let extraLabels = [];    // en-têtes des colonnes ignorées de la dernière analyse
   let aborted = false;
   let chipFilter = 'all';   // all | ok | warn | err | na
 
@@ -637,6 +638,15 @@
     return level;
   }
 
+  // ligne corrigée : une proposition est choisie, ou un identifiant saisi diffère de celui retenu
+  // (un identifiant simplement complété, car non renseigné, n'est pas une correction)
+  function isCorrected(o) {
+    if (o.choice) return true;
+    const eff = effective(o), r = o.rec;
+    const changed = (entered, kept) => entered !== '' && !!kept?.value && kept.value !== entered;
+    return changed(r.siren.value, eff.siren) || changed(r.siret.value, eff.siret) || changed(parseTva(r.tva).value, eff.tva);
+  }
+
   // ---------- rendu ----------
   function badge(s) { return `<span class="badge ${s.level}">${esc(s.label)}</span>`; }
   function statusCell(s) { return badge(s) + s.msgs.map((m) => `<span class="msg">${esc(m)}</span>`).join(''); }
@@ -680,7 +690,9 @@
 
   function renderRow(o, n) {
     const r = o.rec, eff = effective(o), ds = displayStatus(o, eff);
-    const saisi = [`<strong>${esc(r.nom) || '<span class="note">(sans nom)</span>'}</strong>`, r.cp ? esc(r.cp) : ''].filter(Boolean).join('<br>');
+    // colonnes ignorées affichées sous le nom tant qu'il y a des propositions parmi lesquelles choisir
+    const extra = o.options.length ? r.extra.filter((x) => x.value !== '').map((x) => `<span class="note">${x.label ? `${esc(x.label)} : ` : ''}${esc(x.value)}</span>`) : [];
+    const saisi = [`<strong>${esc(r.nom) || '<span class="note">(sans nom)</span>'}</strong>`, r.cp ? esc(r.cp) : '', ...extra].filter(Boolean).join('<br>');
     const level = rowLevel(o);
     const tr = document.createElement('tr');
     tr.dataset.idx = n - 1;
@@ -744,20 +756,23 @@
   // ---------- export Excel (.xlsx minimal, sans dépendance) ----------
   const LEVEL_LABEL = { ok: 'OK', warn: 'À vérifier', err: 'Erreur', na: 'Non renseigné' };
   const STATE_LABEL = { open: 'Ouvert', closed: 'Fermé', unknown: 'Inconnu' };
-  const COLUMNS = [
-    ['N°', 5], ['Nom saisi', 32], ['Code postal saisi', 12], ['SIREN saisi', 13], ['SIRET saisi', 18], ['TVA saisie', 18],
+  const COLUMNS_BEFORE = [['N°', 5], ['Nom saisi', 32], ['Code postal saisi', 12]];
+  const COLUMNS_AFTER = [
+    ['SIREN saisi', 13], ['SIRET saisi', 18], ['TVA saisie', 18],
     ['Résultat ligne', 14],
     ['SIREN retenu', 13], ['SIRET retenu', 18], ['TVA retenue', 18],
     ['État', 10], ['Nom officiel (SIRENE)', 32], ['Adresse officielle', 45], ['Propositions (✔ = choisie)', 70],
   ];
+  // les colonnes ignorées de la saisie viennent après le code postal
+  const columns = () => [...COLUMNS_BEFORE, ...extraLabels.map((l) => [l, 20]), ...COLUMNS_AFTER];
 
   function exportRow(o, n) {
     const r = o.rec, eff = effective(o);
     const props = o.options
       .map((x, k) => `${o.choiceIndex === k ? '✔ ' : ''}${x.siret} – ${x.nom}${x.siege ? ' (siège)' : ''}${x.closed ? ' (fermé)' : ''} – ${x.adresse || x.cp}`).join('\n');
     return [
-      n, r.nom, r.cp, r.siren.raw, r.siret.raw, r.tva,
-      LEVEL_LABEL[rowLevel(o)],
+      n, r.nom, r.cp, ...r.extra.map((x) => x.value), r.siren.raw, r.siret.raw, r.tva,
+      isCorrected(o) ? 'Corrigé' : LEVEL_LABEL[rowLevel(o)],
       eff.siren?.value || '', eff.siret?.value || '', eff.tva?.value || '',
       STATE_LABEL[eff.state], eff.officiel?.nom || '', eff.officiel?.adresse || '', props,
     ];
@@ -765,9 +780,10 @@
 
   const xmlEsc = (v) => String(v ?? '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
     .replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const colName = (i) => String.fromCharCode(65 + i); // moins de 26 colonnes
+  const colName = (i) => (i >= 26 ? colName(Math.floor(i / 26) - 1) : '') + String.fromCharCode(65 + (i % 26)); // A…Z, AA…
 
   function sheetXml(rows) {
+    const COLUMNS = columns();
     const cell = (v, i, y, style) => (typeof v === 'number'
       ? `<c r="${colName(i)}${y}" s="${style}"><v>${v}</v></c>`
       : `<c r="${colName(i)}${y}" s="${style}" t="inlineStr"><is><t xml:space="preserve">${xmlEsc(v)}</t></is></c>`);
@@ -883,7 +899,12 @@
     }
     const get = (row, f) => (cols[f] === undefined ? '' : (row[cols[f]] ?? ''));
     const data = table.slice(hasHeader.checked ? 1 : 0).filter((r) => r.some((c) => c !== ''));
+    // colonnes ignorées : conservées pour comparer avec les propositions de l'API
+    const ignored = [...mappingEl.querySelectorAll('select')].filter((s) => !s.value).map((s) => Number(s.dataset.col));
+    const header = (i) => (hasHeader.checked && table[0][i]) || '';
+    extraLabels = ignored.map((i) => header(i) || `Colonne ${i + 1}`);
     const recs = data.map((row) => ({
+      extra: ignored.map((i) => ({ label: header(i), value: row[i] ?? '' })),
       nom: get(row, 'nom'),
       cp: get(row, 'cp'),
       siret: { raw: get(row, 'siret'), ...cleanNumber(get(row, 'siret'), 14) },
