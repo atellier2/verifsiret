@@ -39,6 +39,8 @@
   button { font: inherit; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); cursor: pointer; }
   button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
   button:disabled { opacity: .5; cursor: default; }
+  button.export { padding: 10px 20px; font-size: 16px; box-shadow: 0 2px 8px rgba(36, 87, 214, .35); }
+  button.export:not(:disabled):hover { filter: brightness(1.1); }
   select { font: inherit; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); max-width: 100%; }
   .mapping { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
   .mapping .col { display: flex; flex-direction: column; gap: 3px; min-width: 150px; max-width: 220px; }
@@ -122,7 +124,7 @@
           </select>
         </label>
         <label class="inline"><input type="checkbox" id="only-issues"> Afficher uniquement les anomalies</label>
-        <button type="button" id="export" disabled>Exporter vers Excel</button>
+        <button type="button" class="primary export" id="export" disabled>Exporter vers Excel</button>
       </div>
     </div>
     <div class="tablewrap" style="margin-top:12px;">
@@ -543,7 +545,8 @@
           if (mismatch) m.push('⚠ nom différent de celui saisi');
           out.state = open && alive ? 'open' : 'closed';
           out.officiel = { nom: ul.nom_complet, adresse: e.adresse || '' };
-          out.siret = st(!open || !alive || mismatch ? 'warn' : 'ok', !open ? 'Fermé' : (!alive ? 'Entreprise cessée' : 'Valide'), [...m, ...msgs]);
+          // un établissement fermé ou une entreprise cessée reste « OK » : l'identifiant est valide (filtre Ouverts/Fermés à part)
+          out.siret = st(mismatch ? 'warn' : 'ok', !open ? 'Fermé' : (!alive ? 'Entreprise cessée' : 'Valide'), [...m, ...msgs]);
         }
       }
     }
@@ -575,7 +578,7 @@
         out.siren = st('warn', 'Incohérent', [`différent du SIREN retenu (${sirenRet}, ${ids.siren.origin.toLowerCase()})`, ...msgs]);
       } else if (ul && ul.siren === c.siren) {
         const alive = ul.etat_administratif === 'A';
-        out.siren = st(alive ? 'ok' : 'warn', alive ? 'Valide' : 'Entreprise cessée', [ul.nom_complet, ...msgs]);
+        out.siren = st('ok', alive ? 'Valide' : 'Entreprise cessée', [ul.nom_complet, ...msgs]);
       } else if (ulChecked) {
         out.siren = st('err', 'Introuvable', ['absent de la base SIRENE', ...msgs]);
       } else {
@@ -649,8 +652,10 @@
 
   function optionsCell(o) {
     if (!o.options.length && !o.optionsNote) return '';
+    // une fois une proposition choisie, les autres sont masquées (elles reviennent à l'annulation du choix)
     const items = o.options.map((s, k) => {
       const chosen = o.choiceIndex === k;
+      if (o.choiceIndex !== null && !chosen) return '';
       return `<li class="${s.closed ? 'closed' : ''} ${chosen ? 'chosen' : ''}"><strong>${esc(s.nom)}</strong>` +
         `${s.siege ? ' <span class="badge na">siège</span>' : ''}${s.closed ? ' <span class="badge na">fermé</span>' : ''}<br>` +
         `<span class="mono">${esc(s.siret)}</span> <button type="button" data-choose="${k}">${chosen ? '✓ Choisi (annuler)' : 'Choisir'}</button><br>` +
@@ -660,8 +665,21 @@
       (o.optionsNote ? `<span class="note">${esc(o.optionsNote)}</span>` : '');
   }
 
+  // statuts affichés : une proposition choisie rend « Valide » les identifiants qui n'étaient pas renseignés
+  // (ceux qui avaient été saisis gardent leur statut, la valeur retenue s'affichant en dessous)
+  function displayStatus(o, eff) {
+    const ch = o.choice;
+    if (!ch) return { siren: o.siren, siret: o.siret, tva: o.tva };
+    const empty = (s) => s.level === 'na' && s.label === 'Non renseigné';
+    return {
+      siren: empty(o.siren) ? st('ok', 'Valide', [ch.nom]) : o.siren,
+      siret: empty(o.siret) ? st('ok', ch.closed ? 'Fermé' : 'Valide', [ch.nom, ch.adresse].filter(Boolean)) : o.siret,
+      tva: empty(o.tva) && eff.tva ? st('ok', 'Valide', ['calculée depuis le SIREN choisi']) : o.tva,
+    };
+  }
+
   function renderRow(o, n) {
-    const r = o.rec, eff = effective(o);
+    const r = o.rec, eff = effective(o), ds = displayStatus(o, eff);
     const saisi = [`<strong>${esc(r.nom) || '<span class="note">(sans nom)</span>'}</strong>`, r.cp ? esc(r.cp) : ''].filter(Boolean).join('<br>');
     const level = rowLevel(o);
     const tr = document.createElement('tr');
@@ -670,9 +688,9 @@
     tr.dataset.state = eff.state;
     tr.dataset.level = level;
     tr.innerHTML = `<td class="num">${n}</td><td>${saisi}</td>` +
-      `<td>${idCell(r.siren.raw, r.siren.value, o.siren, eff.siren)}</td>` +
-      `<td>${idCell(r.siret.raw, r.siret.value, o.siret, eff.siret)}</td>` +
-      `<td>${idCell(r.tva, parseTva(r.tva).value, o.tva, eff.tva)}</td>` +
+      `<td>${idCell(r.siren.raw, r.siren.value, ds.siren, eff.siren)}</td>` +
+      `<td>${idCell(r.siret.raw, r.siret.value, ds.siret, eff.siret)}</td>` +
+      `<td>${idCell(r.tva, parseTva(r.tva).value, ds.tva, eff.tva)}</td>` +
       `<td>${optionsCell(o)}</td>`;
     return tr;
   }
@@ -705,7 +723,7 @@
         (stateFilter.value !== 'all' && tr.dataset.state !== stateFilter.value);
     });
     const n = [...resultsEl.children].filter((tr) => !tr.hidden).length;
-    exportBtn.textContent = `Exporter vers Excel (${n} ligne${n > 1 ? 's' : ''})`;
+    exportBtn.textContent = `⬇ Exporter vers Excel (${n} ligne${n > 1 ? 's' : ''})`;
     exportBtn.disabled = n === 0;
   }
   onlyIssues.addEventListener('change', applyFilter);
@@ -729,7 +747,7 @@
   const COLUMNS = [
     ['N°', 5], ['Nom saisi', 32], ['Code postal saisi', 12], ['SIREN saisi', 13], ['SIRET saisi', 18], ['TVA saisie', 18],
     ['Résultat ligne', 14],
-    ['SIREN retenu', 13],
+    ['SIREN retenu', 13], ['SIRET retenu', 18], ['TVA retenue', 18],
     ['État', 10], ['Nom officiel (SIRENE)', 32], ['Adresse officielle', 45], ['Propositions (✔ = choisie)', 70],
   ];
 
@@ -740,7 +758,7 @@
     return [
       n, r.nom, r.cp, r.siren.raw, r.siret.raw, r.tva,
       LEVEL_LABEL[rowLevel(o)],
-      eff.siren?.value || '',
+      eff.siren?.value || '', eff.siret?.value || '', eff.tva?.value || '',
       STATE_LABEL[eff.state], eff.officiel?.nom || '', eff.officiel?.adresse || '', props,
     ];
   }
