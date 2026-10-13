@@ -699,12 +699,19 @@
     return code.slice(0, 2);
   }
 
-  // recherche de l'entreprise saisie sur Pappers (nom + département)
-  function pappersUrl(nom, cp) {
-    const params = { q: nom.trim() };
+  // recherche de l'entreprise saisie sur l'Annuaire des Entreprises (nom + code postal, ou département à défaut)
+  function annuaireUrl(nom, cp) {
+    const params = { terme: nom.trim() };
+    const d = digits(cp);
     const dep = departement(cp);
-    if (dep) params.departement = dep;
-    return 'https://www.pappers.fr/recherche?' + new URLSearchParams(params);
+    if (d.length === 5) {
+      params.cp_dep_type = 'cp';
+      params.cp_dep = d;
+    } else if (dep) {
+      params.cp_dep_type = 'dep';
+      params.cp_dep = dep;
+    }
+    return 'https://annuaire-entreprises.data.gouv.fr/rechercher?' + new URLSearchParams(params);
   }
 
   function renderRow(o, n) {
@@ -715,7 +722,7 @@
       ? [`<details class="extra"${o.options.length ? ' open' : ''}><summary class="note">Autres colonnes (${extraItems.length})</summary>${extraItems.join('<br>')}</details>`]
       : [];
     const nomHtml = r.nom.trim()
-      ? `<a href="${esc(pappersUrl(r.nom, r.cp))}" target="_blank" rel="noopener" title="Rechercher sur Pappers">${esc(r.nom)}</a>`
+      ? `<a href="${esc(annuaireUrl(r.nom, r.cp))}" target="_blank" rel="noopener" title="Rechercher sur l'Annuaire des Entreprises">${esc(r.nom)}</a>`
       : '<span class="note">(sans nom)</span>';
     const saisi = [`<strong>${nomHtml}</strong>`, r.cp ? esc(r.cp) : '', ...extra].filter(Boolean).join('<br>');
     const level = rowLevel(o);
