@@ -70,6 +70,7 @@
   ul.sugg li.chosen button { background: var(--ok); color: var(--card); border-color: var(--ok); }
   .ret { margin-top: 4px; font-size: 13px; }
   .note { color: var(--muted); font-size: 12px; }
+  details.extra summary { cursor: pointer; }
   label.inline { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
   footer { color: var(--muted); font-size: 12px; margin-top: 24px; }
   [hidden] { display: none !important; }
@@ -688,11 +689,35 @@
     };
   }
 
+  // département d'un code postal (2 chiffres, 3 pour les DOM, 2A/2B pour la Corse) ; '' si inconnu
+  function departement(cp) {
+    const d = digits(cp);
+    if (d.length < 4) return '';
+    const code = d.padStart(5, '0');
+    if (/^9[78]/.test(code)) return code.slice(0, 3);
+    if (code.startsWith('20')) return Number(code) < 20200 ? '2A' : '2B';
+    return code.slice(0, 2);
+  }
+
+  // recherche de l'entreprise saisie sur Pappers (nom + département)
+  function pappersUrl(nom, cp) {
+    const params = { q: nom.trim() };
+    const dep = departement(cp);
+    if (dep) params.departement = dep;
+    return 'https://www.pappers.fr/recherche?' + new URLSearchParams(params);
+  }
+
   function renderRow(o, n) {
     const r = o.rec, eff = effective(o), ds = displayStatus(o, eff);
-    // colonnes ignorées affichées sous le nom tant qu'il y a des propositions parmi lesquelles choisir
-    const extra = o.options.length ? r.extra.filter((x) => x.value !== '').map((x) => `<span class="note">${x.label ? `${esc(x.label)} : ` : ''}${esc(x.value)}</span>`) : [];
-    const saisi = [`<strong>${esc(r.nom) || '<span class="note">(sans nom)</span>'}</strong>`, r.cp ? esc(r.cp) : '', ...extra].filter(Boolean).join('<br>');
+    // colonnes ignorées : toujours disponibles sous le nom, dépliées d'office quand il y a des propositions à comparer
+    const extraItems = r.extra.filter((x) => x.value !== '').map((x) => `<span class="note">${x.label ? `${esc(x.label)} : ` : ''}${esc(x.value)}</span>`);
+    const extra = extraItems.length
+      ? [`<details class="extra"${o.options.length ? ' open' : ''}><summary class="note">Autres colonnes (${extraItems.length})</summary>${extraItems.join('<br>')}</details>`]
+      : [];
+    const nomHtml = r.nom.trim()
+      ? `<a href="${esc(pappersUrl(r.nom, r.cp))}" target="_blank" rel="noopener" title="Rechercher sur Pappers">${esc(r.nom)}</a>`
+      : '<span class="note">(sans nom)</span>';
+    const saisi = [`<strong>${nomHtml}</strong>`, r.cp ? esc(r.cp) : '', ...extra].filter(Boolean).join('<br>');
     const level = rowLevel(o);
     const tr = document.createElement('tr');
     tr.dataset.idx = n - 1;
